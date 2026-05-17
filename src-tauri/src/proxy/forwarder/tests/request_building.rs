@@ -336,6 +336,12 @@ async fn codex_oauth_prepare_request_errors_without_available_account() {
         error.to_string().contains("Codex OAuth 认证失败"),
         "unexpected error: {error}"
     );
+    assert!(
+        error
+            .to_string()
+            .contains("cc-switch auth login codex-oauth"),
+        "error should tell users how to log in: {error}"
+    );
 }
 
 async fn build_request(

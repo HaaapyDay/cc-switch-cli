@@ -5,7 +5,7 @@ use std::net::TcpListener;
 
 use cc_switch_lib::{
     get_claude_settings_path, get_codex_auth_path, get_codex_config_path, read_json_file,
-    write_codex_live_atomic, AppType, McpApps, McpServer, MultiAppConfig, Provider,
+    write_codex_live_atomic, AppState, AppType, McpApps, McpServer, MultiAppConfig, Provider,
     ProviderService,
 };
 
@@ -14,6 +14,71 @@ mod support;
 use support::{
     ensure_test_home, lock_test_mutex, reset_test_fs, state_from_config, CurrentDirGuard,
 };
+
+#[test]
+#[serial]
+fn provider_add_codex_oauth_command_persists_upstream_metadata_shape() {
+    let _guard = lock_test_mutex();
+    reset_test_fs();
+
+    let state = state_from_config(MultiAppConfig::default());
+    state.save().expect("persist default config");
+
+    cc_switch_lib::cli::commands::provider::execute(
+        cc_switch_lib::cli::commands::provider::ProviderCommand::Add {
+            provider_type: Some("codex-oauth".to_string()),
+            name: Some("Codex".to_string()),
+            account: Some("default".to_string()),
+        },
+        Some(AppType::Claude),
+    )
+    .expect("codex oauth provider add should succeed");
+
+    let state = AppState::try_new().expect("reload state");
+    let providers = ProviderService::list(&state, AppType::Claude).expect("list providers");
+    let provider = providers
+        .get("codex")
+        .expect("provider id should be generated from name");
+    let meta = provider.meta.as_ref().expect("provider should have meta");
+    let binding = meta
+        .auth_binding
+        .as_ref()
+        .expect("provider should have auth binding");
+
+    let env = provider
+        .settings_config
+        .get("env")
+        .and_then(|value| value.as_object())
+        .expect("codex oauth provider should persist Claude env defaults");
+    assert_eq!(
+        env.get("ANTHROPIC_BASE_URL")
+            .and_then(|value| value.as_str()),
+        Some("https://chatgpt.com/backend-api/codex")
+    );
+    assert_eq!(
+        env.get("ANTHROPIC_MODEL").and_then(|value| value.as_str()),
+        Some("gpt-5.4")
+    );
+    assert_eq!(
+        env.get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+            .and_then(|value| value.as_str()),
+        Some("gpt-5.4-mini")
+    );
+    assert_eq!(
+        env.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+            .and_then(|value| value.as_str()),
+        Some("gpt-5.4")
+    );
+    assert_eq!(
+        env.get("ANTHROPIC_DEFAULT_OPUS_MODEL")
+            .and_then(|value| value.as_str()),
+        Some("gpt-5.4")
+    );
+    assert_eq!(meta.provider_type.as_deref(), Some("codex_oauth"));
+    assert_eq!(meta.api_format.as_deref(), Some("openai_responses"));
+    assert_eq!(binding.auth_provider.as_deref(), Some("codex_oauth"));
+    assert_eq!(binding.account_id, None);
+}
 
 fn find_free_port() -> u16 {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind free local port");

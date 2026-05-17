@@ -12,10 +12,19 @@ use crate::cli::commands::provider_input::{
 use crate::cli::i18n::texts;
 use crate::cli::ui::{error, highlight, info, success, warning};
 use crate::error::AppError;
-use crate::provider::{Provider, ProviderMeta};
+use crate::provider::{AuthBinding, AuthBindingSource, Provider, ProviderMeta};
 use crate::services::ProviderService;
 use crate::store::AppState;
 use inquire::{Confirm, Select, Text};
+use serde_json::json;
+
+const CODEX_OAUTH_PROVIDER_TYPE: &str = "codex_oauth";
+const CODEX_OAUTH_PROVIDER_TYPE_CLI: &str = "codex-oauth";
+const CODEX_OAUTH_API_FORMAT: &str = "openai_responses";
+const CODEX_OAUTH_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
+const CODEX_OAUTH_WEBSITE_URL: &str = "https://openai.com/chatgpt/pricing";
+const CODEX_OAUTH_DEFAULT_MODEL: &str = "gpt-5.4";
+const CODEX_OAUTH_DEFAULT_HAIKU_MODEL: &str = "gpt-5.4-mini";
 
 fn supports_official_provider(app_type: &AppType) -> bool {
     matches!(app_type, AppType::Codex)
@@ -64,8 +73,18 @@ pub enum ProviderCommand {
         /// Provider ID to switch to
         id: String,
     },
-    /// Add a new provider (interactive)
-    Add,
+    /// Add a new provider
+    Add {
+        /// Provider type for non-interactive creation, for example codex-oauth
+        #[arg(long = "type", value_parser = ["codex-oauth"])]
+        provider_type: Option<String>,
+        /// Provider display name for non-interactive creation
+        #[arg(long)]
+        name: Option<String>,
+        /// Managed auth account ID, or default to follow the default account
+        #[arg(long)]
+        account: Option<String>,
+    },
     /// Edit a provider
     Edit {
         /// Provider ID to edit
@@ -114,7 +133,11 @@ pub fn execute(cmd: ProviderCommand, app: Option<AppType>) -> Result<(), AppErro
         ProviderCommand::List => provider_inspect::list_providers(app_type),
         ProviderCommand::Current => provider_inspect::show_current(app_type),
         ProviderCommand::Switch { id } => switch_provider(app_type, &id),
-        ProviderCommand::Add => add_provider(app_type),
+        ProviderCommand::Add {
+            provider_type,
+            name,
+            account,
+        } => add_provider(app_type, provider_type, name, account),
         ProviderCommand::Edit { id } => edit_provider(app_type, &id),
         ProviderCommand::Delete { id } => delete_provider(app_type, &id),
         ProviderCommand::Duplicate { id } => duplicate_provider(app_type, &id),
@@ -209,7 +232,16 @@ fn delete_provider(app_type: AppType, id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-fn add_provider(app_type: AppType) -> Result<(), AppError> {
+fn add_provider(
+    app_type: AppType,
+    provider_type: Option<String>,
+    name: Option<String>,
+    account: Option<String>,
+) -> Result<(), AppError> {
+    if provider_type.is_some() || name.is_some() || account.is_some() {
+        return add_provider_non_interactive(app_type, provider_type, name, account);
+    }
+
     // Disable bracketed paste mode to work around inquire dropping paste events
     crate::cli::terminal::disable_bracketed_paste_mode_best_effort();
 
@@ -334,6 +366,105 @@ fn add_provider(app_type: AppType) -> Result<(), AppError> {
     );
 
     Ok(())
+}
+
+fn add_provider_non_interactive(
+    app_type: AppType,
+    provider_type: Option<String>,
+    name: Option<String>,
+    account: Option<String>,
+) -> Result<(), AppError> {
+    if !matches!(app_type, AppType::Claude) {
+        return Err(AppError::Message(format!(
+            "Non-interactive codex-oauth provider creation currently supports only Claude. Use --app claude (current app: {}).",
+            app_type.as_str()
+        )));
+    }
+
+    let provider_type = provider_type.ok_or_else(|| {
+        AppError::Message(format!(
+            "Missing --type. Supported value: {CODEX_OAUTH_PROVIDER_TYPE_CLI}"
+        ))
+    })?;
+    if !matches!(
+        provider_type.trim().to_ascii_lowercase().as_str(),
+        "codex-oauth" | "codex_oauth" | "codexoauth"
+    ) {
+        return Err(AppError::Message(format!(
+            "Unsupported provider type: {provider_type}. Supported value: {CODEX_OAUTH_PROVIDER_TYPE_CLI}"
+        )));
+    }
+
+    let name = name
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::Message("Missing --name for codex-oauth provider".to_string()))?;
+    let account_id = account
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && *value != "default");
+
+    let state = get_state()?;
+    let existing_ids: Vec<String> = {
+        let config = state.config.read().map_err(AppError::from)?;
+        let manager = config
+            .get_manager(&app_type)
+            .ok_or_else(|| AppError::Message(texts::app_config_not_found(app_type.as_str())))?;
+        manager.providers.keys().cloned().collect()
+    };
+    let id = generate_provider_id(&name, &existing_ids);
+    let provider = build_codex_oauth_provider(&id, &name, account_id);
+
+    ProviderService::add(&state, app_type, provider)?;
+    println!(
+        "{}",
+        success(&texts::entity_added_success(texts::entity_provider(), &id))
+    );
+    println!(
+        "{}",
+        info(&format!("Auth provider: {CODEX_OAUTH_PROVIDER_TYPE_CLI}"))
+    );
+    if let Some(account_id) = account_id {
+        println!("{}", info(&format!("Account: {account_id}")));
+    } else {
+        println!("{}", info("Account: default"));
+    }
+
+    Ok(())
+}
+
+fn build_codex_oauth_provider(id: &str, name: &str, account_id: Option<&str>) -> Provider {
+    Provider {
+        id: id.to_string(),
+        name: name.to_string(),
+        settings_config: json!({
+            "env": {
+                "ANTHROPIC_BASE_URL": CODEX_OAUTH_BASE_URL,
+                "ANTHROPIC_MODEL": CODEX_OAUTH_DEFAULT_MODEL,
+                "ANTHROPIC_DEFAULT_HAIKU_MODEL": CODEX_OAUTH_DEFAULT_HAIKU_MODEL,
+                "ANTHROPIC_DEFAULT_SONNET_MODEL": CODEX_OAUTH_DEFAULT_MODEL,
+                "ANTHROPIC_DEFAULT_OPUS_MODEL": CODEX_OAUTH_DEFAULT_MODEL
+            }
+        }),
+        website_url: Some(CODEX_OAUTH_WEBSITE_URL.to_string()),
+        category: Some("third_party".to_string()),
+        created_at: Some(current_timestamp()),
+        sort_index: None,
+        notes: None,
+        icon: None,
+        icon_color: None,
+        meta: Some(ProviderMeta {
+            provider_type: Some(CODEX_OAUTH_PROVIDER_TYPE.to_string()),
+            api_format: Some(CODEX_OAUTH_API_FORMAT.to_string()),
+            auth_binding: Some(AuthBinding {
+                source: AuthBindingSource::ManagedAccount,
+                auth_provider: Some(CODEX_OAUTH_PROVIDER_TYPE.to_string()),
+                account_id: account_id.map(str::to_string),
+            }),
+            ..Default::default()
+        }),
+        in_failover_queue: false,
+    }
 }
 
 fn edit_provider(app_type: AppType, id: &str) -> Result<(), AppError> {
@@ -566,4 +697,65 @@ fn export_provider(app_type: AppType, id: &str, output: Option<PathBuf>) -> Resu
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_codex_oauth_provider_uses_default_account_binding_shape() {
+        let provider = build_codex_oauth_provider("codex", "Codex", None);
+        let env = provider
+            .settings_config
+            .get("env")
+            .and_then(|value| value.as_object())
+            .expect("codex oauth provider should carry Claude env defaults");
+        let meta = provider.meta.expect("codex oauth provider should have meta");
+        let binding = meta.auth_binding.expect("codex oauth provider should bind auth");
+
+        assert_eq!(provider.id, "codex");
+        assert_eq!(provider.name, "Codex");
+        assert_eq!(
+            env.get("ANTHROPIC_BASE_URL")
+                .and_then(|value| value.as_str()),
+            Some("https://chatgpt.com/backend-api/codex")
+        );
+        assert_eq!(
+            env.get("ANTHROPIC_MODEL")
+                .and_then(|value| value.as_str()),
+            Some("gpt-5.4")
+        );
+        assert_eq!(
+            env.get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+                .and_then(|value| value.as_str()),
+            Some("gpt-5.4-mini")
+        );
+        assert_eq!(
+            env.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+                .and_then(|value| value.as_str()),
+            Some("gpt-5.4")
+        );
+        assert_eq!(
+            env.get("ANTHROPIC_DEFAULT_OPUS_MODEL")
+                .and_then(|value| value.as_str()),
+            Some("gpt-5.4")
+        );
+        assert_eq!(meta.provider_type.as_deref(), Some("codex_oauth"));
+        assert_eq!(binding.source, crate::provider::AuthBindingSource::ManagedAccount);
+        assert_eq!(binding.auth_provider.as_deref(), Some("codex_oauth"));
+        assert_eq!(binding.account_id, None);
+    }
+
+    #[test]
+    fn build_codex_oauth_provider_preserves_explicit_account_binding() {
+        let provider = build_codex_oauth_provider("codex", "Codex", Some("acct_123"));
+        let binding = provider
+            .meta
+            .expect("codex oauth provider should have meta")
+            .auth_binding
+            .expect("codex oauth provider should bind auth");
+
+        assert_eq!(binding.account_id.as_deref(), Some("acct_123"));
+    }
 }

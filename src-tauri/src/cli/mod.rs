@@ -37,6 +37,10 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Manage login-based auth accounts
+    #[command(subcommand)]
+    Auth(commands::auth::AuthCommand),
+
     /// Manage providers (list, switch, export, speedtest, stream-check, fetch-models)
     #[command(subcommand)]
     Provider(commands::provider::ProviderCommand),
@@ -106,7 +110,7 @@ mod tests {
     use clap::{CommandFactory, Parser};
     use std::ffi::OsString;
 
-    use super::{Cli, Commands};
+    use super::{generate_completions_to, Cli, Commands};
     use crate::cli::commands::completions::{
         CompletionLifecycleCommand, CompletionsAction, ManagedShellSelection,
     };
@@ -460,6 +464,75 @@ mod tests {
             }
             _ => panic!("expected provider fetch-models command"),
         }
+    }
+
+    #[test]
+    fn parses_auth_login_codex_oauth_subcommand() {
+        let cli = Cli::parse_from(["cc-switch", "auth", "login", "codex-oauth"]);
+
+        match cli.command {
+            Some(Commands::Auth(super::commands::auth::AuthCommand::Login { provider })) => {
+                assert_eq!(provider, "codex-oauth");
+            }
+            _ => panic!("expected auth login command"),
+        }
+    }
+
+    #[test]
+    fn parses_auth_use_codex_oauth_subcommand() {
+        let cli = Cli::parse_from(["cc-switch", "auth", "use", "codex-oauth", "acct_123"]);
+
+        match cli.command {
+            Some(Commands::Auth(super::commands::auth::AuthCommand::Use {
+                provider,
+                account_id,
+            })) => {
+                assert_eq!(provider, "codex-oauth");
+                assert_eq!(account_id, "acct_123");
+            }
+            _ => panic!("expected auth use command"),
+        }
+    }
+
+    #[test]
+    fn parses_provider_add_codex_oauth_non_interactive_flags() {
+        let cli = Cli::parse_from([
+            "cc-switch",
+            "--app",
+            "claude",
+            "provider",
+            "add",
+            "--type",
+            "codex-oauth",
+            "--name",
+            "Codex",
+            "--account",
+            "default",
+        ]);
+
+        assert_eq!(cli.app, Some(super::AppType::Claude));
+        match cli.command {
+            Some(Commands::Provider(super::commands::provider::ProviderCommand::Add {
+                provider_type,
+                name,
+                account,
+            })) => {
+                assert_eq!(provider_type.as_deref(), Some("codex-oauth"));
+                assert_eq!(name.as_deref(), Some("Codex"));
+                assert_eq!(account.as_deref(), Some("default"));
+            }
+            _ => panic!("expected provider add command with codex oauth flags"),
+        }
+    }
+
+    #[test]
+    fn generated_completions_include_auth_command() {
+        let mut output = Vec::new();
+        generate_completions_to(clap_complete::Shell::Bash, &mut output);
+        let completions = String::from_utf8(output).expect("completions should be utf8");
+
+        assert!(completions.contains("auth"));
+        assert!(completions.contains("codex-oauth"));
     }
 
     #[test]

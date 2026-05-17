@@ -26,6 +26,8 @@ const HEADER_BLACKLIST: &[&str] = &[
     "x-forwarded-for",
     "x-real-ip",
 ];
+const CODEX_OAUTH_AUTH_PROVIDER: &str = "codex_oauth";
+const CHATGPT_ACCOUNT_ID_HEADER: &str = "ChatGPT-Account-Id";
 
 impl RequestForwarder {
     pub(super) async fn prepare_request(
@@ -135,13 +137,15 @@ async fn build_request(
 
     request = request.header("accept-encoding", "identity");
 
+    let mut codex_oauth_request = false;
     if let Some(auth) = adapter.extract_auth(provider) {
         let mut effective_auth = auth.clone();
         if auth.strategy == AuthStrategy::CodexOAuth {
+            codex_oauth_request = true;
             let account_id = provider
                 .meta
                 .as_ref()
-                .and_then(|meta| meta.managed_account_id_for("codex_oauth"));
+                .and_then(|meta| meta.managed_account_id_for(CODEX_OAUTH_AUTH_PROVIDER));
 
             match match &account_id {
                 Some(id) => CodexOAuthService::get_valid_token_for_account(id).await,
@@ -155,12 +159,12 @@ async fn build_request(
                         None => CodexOAuthService::default_account_id().await,
                     };
                     if let Some(account_id) = resolved_account_id {
-                        request = request.header("ChatGPT-Account-Id", account_id);
+                        request = request.header(CHATGPT_ACCOUNT_ID_HEADER, account_id);
                     }
                 }
                 Err(error) => {
                     return Err(ProxyError::AuthError(format!(
-                        "Codex OAuth 认证失败: {error}"
+                        "Codex OAuth 认证失败: {error}. Run: cc-switch auth login codex-oauth"
                     )));
                 }
             }
@@ -175,6 +179,9 @@ async fn build_request(
             .and_then(|value| value.to_str().ok())
             .unwrap_or("2023-06-01");
         request = request.header("anthropic-version", version);
+    }
+    if codex_oauth_request {
+        request = request.header("accept", "text/event-stream");
     }
 
     Ok(request.json(request_body))

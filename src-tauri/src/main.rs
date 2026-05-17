@@ -28,6 +28,7 @@ fn run(cli: Cli) -> Result<(), AppError> {
     match cli.command {
         // Default to interactive mode if no command is provided
         None | Some(Commands::Interactive) => cc_switch_lib::cli::interactive::run(cli.app),
+        Some(Commands::Auth(cmd)) => cc_switch_lib::cli::commands::auth::execute(cmd),
         Some(Commands::Provider(cmd)) => {
             cc_switch_lib::cli::commands::provider::execute(cmd, cli.app)
         }

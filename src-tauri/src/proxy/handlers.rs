@@ -194,7 +194,7 @@ async fn handle_claude_request(
             super::forwarder::StreamingResponse::Live(response)
                 if adapter.needs_transform(&forward_result.provider) =>
             {
-                if is_sse_response(&response) {
+                if api_format == "openai_responses" || is_sse_response(&response) {
                     build_anthropic_stream_response(
                         response,
                         first_byte_timeout,
