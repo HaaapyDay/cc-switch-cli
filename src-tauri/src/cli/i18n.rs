@@ -2073,12 +2073,10 @@ pub mod texts {
             } else {
                 "选择模型".to_string()
             }
+        } else if fetching {
+            "Select Model (Fetching...)".to_string()
         } else {
-            if fetching {
-                "Select Model (Fetching...)".to_string()
-            } else {
-                "Select Model".to_string()
-            }
+            "Select Model".to_string()
         }
     }
 
@@ -5363,12 +5361,10 @@ pub mod texts {
             } else {
                 "仓库已禁用。".to_string()
             }
+        } else if enabled {
+            "Repository enabled.".to_string()
         } else {
-            if enabled {
-                "Repository enabled.".to_string()
-            } else {
-                "Repository disabled.".to_string()
-            }
+            "Repository disabled.".to_string()
         }
     }
 
@@ -5379,12 +5375,10 @@ pub mod texts {
             } else {
                 "已恢复 Claude Code 初次安装确认。".to_string()
             }
+        } else if enabled {
+            "Claude Code onboarding confirmation will be skipped.".to_string()
         } else {
-            if enabled {
-                "Claude Code onboarding confirmation will be skipped.".to_string()
-            } else {
-                "Claude Code onboarding confirmation restored.".to_string()
-            }
+            "Claude Code onboarding confirmation restored.".to_string()
         }
     }
 
@@ -5395,12 +5389,10 @@ pub mod texts {
             } else {
                 "已关闭 Claude Code for VSCode 插件联动。".to_string()
             }
+        } else if enabled {
+            "Claude Code for VSCode integration enabled.".to_string()
         } else {
-            if enabled {
-                "Claude Code for VSCode integration enabled.".to_string()
-            } else {
-                "Claude Code for VSCode integration disabled.".to_string()
-            }
+            "Claude Code for VSCode integration disabled.".to_string()
         }
     }
 
@@ -8097,16 +8089,14 @@ pub mod texts {
                     "确认恢复 Claude Code 初次安装确认？\n将从 {path} 删除 hasCompletedOnboarding"
                 )
             }
+        } else if enable {
+            format!(
+                "Enable skipping Claude Code onboarding confirmation?\nWrites hasCompletedOnboarding=true to {path}"
+            )
         } else {
-            if enable {
-                format!(
-                    "Enable skipping Claude Code onboarding confirmation?\nWrites hasCompletedOnboarding=true to {path}"
-                )
-            } else {
-                format!(
-                    "Disable skipping Claude Code onboarding confirmation?\nRemoves hasCompletedOnboarding from {path}"
-                )
-            }
+            format!(
+                "Disable skipping Claude Code onboarding confirmation?\nRemoves hasCompletedOnboarding from {path}"
+            )
         }
     }
 
@@ -8117,12 +8107,10 @@ pub mod texts {
             } else {
                 "✓ 已恢复 Claude Code 初次安装确认".to_string()
             }
+        } else if enable {
+            "✓ Skip Claude Code onboarding confirmation enabled".to_string()
         } else {
-            if enable {
-                "✓ Skip Claude Code onboarding confirmation enabled".to_string()
-            } else {
-                "✓ Claude Code onboarding confirmation restored".to_string()
-            }
+            "✓ Claude Code onboarding confirmation restored".to_string()
         }
     }
 
@@ -8151,16 +8139,14 @@ pub mod texts {
             } else {
                 "确认关闭 Claude Code for VSCode 插件联动？".to_string()
             }
+        } else if enable {
+            format!(
+                "Enable Claude Code for VSCode integration?\nWrites primaryApiKey=\"any\" to {path}"
+            )
         } else {
-            if enable {
-                format!(
-                    "Enable Claude Code for VSCode integration?\nWrites primaryApiKey=\"any\" to {path}"
-                )
-            } else {
-                format!(
-                    "Disable Claude Code for VSCode integration?\nRemoves primaryApiKey from {path}"
-                )
-            }
+            format!(
+                "Disable Claude Code for VSCode integration?\nRemoves primaryApiKey from {path}"
+            )
         }
     }
 
@@ -8171,12 +8157,10 @@ pub mod texts {
             } else {
                 "✓ 已关闭 Claude Code for VSCode 插件联动".to_string()
             }
+        } else if enable {
+            "✓ Claude Code for VSCode integration enabled".to_string()
         } else {
-            if enable {
-                "✓ Claude Code for VSCode integration enabled".to_string()
-            } else {
-                "✓ Claude Code for VSCode integration disabled".to_string()
-            }
+            "✓ Claude Code for VSCode integration disabled".to_string()
         }
     }
 
@@ -8408,12 +8392,10 @@ pub mod texts {
             } else {
                 format!("编辑 {app} 的通用配置片段（JSON 对象，留空则清除）：")
             }
+        } else if is_codex {
+            format!("Edit common config snippet for {app} (TOML; empty to clear):")
         } else {
-            if is_codex {
-                format!("Edit common config snippet for {app} (TOML; empty to clear):")
-            } else {
-                format!("Edit common config snippet for {app} (JSON object; empty to clear):")
-            }
+            format!("Edit common config snippet for {app} (JSON object; empty to clear):")
         }
     }
 

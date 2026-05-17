@@ -25,7 +25,7 @@ impl EnvGuard {
         std::env::set_var("USERPROFILE", home);
         std::env::set_var("CC_SWITCH_CONFIG_DIR", home.join(".cc-switch"));
         set_test_home_override(Some(home));
-        crate::settings::reload_test_settings();
+        crate::settings::reload_test_settings_locked();
         Self {
             _lock: lock,
             old_home,
@@ -50,7 +50,7 @@ impl Drop for EnvGuard {
             None => std::env::remove_var("CC_SWITCH_CONFIG_DIR"),
         }
         set_test_home_override(self.old_home.as_deref().map(Path::new));
-        crate::settings::reload_test_settings();
+        crate::settings::reload_test_settings_locked();
     }
 }
 

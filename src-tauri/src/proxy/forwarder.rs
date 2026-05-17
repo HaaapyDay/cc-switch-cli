@@ -648,7 +648,6 @@ impl RequestForwarder {
                         tokio::time::timeout(remaining_timeout, request.send())
                             .await
                             .map_err(|_| ())
-                            .map(|result| result)
                     }
                     None => Ok(request.send().await),
                 } {
@@ -797,7 +796,6 @@ impl RequestForwarder {
                         tokio::time::timeout(remaining_timeout, request.send())
                             .await
                             .map_err(|_| ())
-                            .map(|result| result)
                     }
                     None => Ok(request.send().await),
                 } {

@@ -720,10 +720,7 @@ impl Database {
             return Ok(true);
         };
 
-        Ok(!policy
-            .local_settings_keys
-            .iter()
-            .any(|local_key| *local_key == key))
+        Ok(!policy.local_settings_keys.contains(&key))
     }
 
     fn neutralize_export_row(

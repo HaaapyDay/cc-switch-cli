@@ -84,7 +84,6 @@ impl ProxyEnvGuard {
         let saved = proxy_keys
             .into_iter()
             .chain(bypass_keys)
-            .into_iter()
             .map(|key| {
                 let old = env::var(key).ok();
                 if bypass_keys.contains(&key) {

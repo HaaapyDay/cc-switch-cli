@@ -500,9 +500,14 @@ pub fn reload_settings() -> Result<(), AppError> {
 }
 
 #[cfg(test)]
-pub(crate) fn reload_test_settings() {
+pub(crate) fn reload_test_settings_locked() {
     let mut guard = settings_store().write().expect("写入设置锁失败");
     *guard = AppSettings::load();
+}
+
+#[cfg(test)]
+pub(crate) fn reload_test_settings() {
+    reload_test_settings_locked();
 }
 
 fn resolve_override_path(raw: &str) -> PathBuf {

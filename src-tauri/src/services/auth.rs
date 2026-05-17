@@ -180,39 +180,61 @@ impl AuthService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::lock_test_home_and_settings;
-    use std::{env, ffi::OsString};
+    use std::sync::Arc;
 
-    struct ConfigDirEnvGuard {
-        original: Option<OsString>,
+    use crate::proxy::providers::codex_oauth_auth::CodexOAuthManager;
+    use serial_test::serial;
+    use crate::test_support::{
+        lock_codex_oauth_test_env, lock_test_home_and_settings, set_test_home_override,
+        test_home_override, CodexOAuthTestEnvLock, TestHomeSettingsLock,
+    };
+
+    struct CodexOAuthTestEnv {
+        _home_lock: TestHomeSettingsLock,
+        _codex_lock: CodexOAuthTestEnvLock,
+        #[allow(dead_code)]
+        temp_dir: tempfile::TempDir,
+        original_home_override: Option<std::path::PathBuf>,
     }
 
-    impl ConfigDirEnvGuard {
-        fn set(value: Option<&str>) -> Self {
-            let original = env::var_os("CC_SWITCH_CONFIG_DIR");
-            match value {
-                Some(value) => unsafe { env::set_var("CC_SWITCH_CONFIG_DIR", value) },
-                None => unsafe { env::remove_var("CC_SWITCH_CONFIG_DIR") },
+    impl CodexOAuthTestEnv {
+        fn new() -> Self {
+            let home_lock = lock_test_home_and_settings();
+            let codex_lock = lock_codex_oauth_test_env();
+            let temp_dir = tempfile::tempdir().expect("create temp dir");
+            let original_home_override = test_home_override();
+            let config_dir = temp_dir.path().join(".cc-switch");
+            std::fs::create_dir_all(&config_dir).expect("create isolated config dir");
+            set_test_home_override(Some(temp_dir.path()));
+            CodexOAuthService::reset_for_tests();
+            let manager = Arc::new(CodexOAuthManager::new(config_dir.clone()));
+            CodexOAuthService::pin_manager_for_tests(config_dir, manager);
+
+            Self {
+                _home_lock: home_lock,
+                _codex_lock: codex_lock,
+                temp_dir,
+                original_home_override,
             }
-            Self { original }
         }
     }
 
-    impl Drop for ConfigDirEnvGuard {
+    impl Drop for CodexOAuthTestEnv {
         fn drop(&mut self) {
-            match self.original.as_ref() {
-                Some(value) => unsafe { env::set_var("CC_SWITCH_CONFIG_DIR", value) },
-                None => unsafe { env::remove_var("CC_SWITCH_CONFIG_DIR") },
-            }
+            CodexOAuthService::unpin_manager_for_tests();
+            CodexOAuthService::reset_for_tests();
+            set_test_home_override(
+                self.original_home_override
+                    .as_deref()
+                    .map(std::path::Path::new),
+            );
         }
     }
 
     #[tokio::test]
+    #[serial(codex_oauth)]
     async fn auth_status_marks_default_account() {
-        let _lock = lock_test_home_and_settings();
-        let temp = tempfile::tempdir().expect("create temp dir");
-        let _guard = ConfigDirEnvGuard::set(Some(temp.path().to_string_lossy().as_ref()));
-        CodexOAuthService::reset_for_tests();
+        let _env = CodexOAuthTestEnv::new();
 
         CodexOAuthService::seed_account_for_tests(
             "acc-123",

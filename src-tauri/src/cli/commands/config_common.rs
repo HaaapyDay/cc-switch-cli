@@ -714,9 +714,6 @@ mod tests {
 
     #[test]
     fn follow_up_message_is_omitted_for_additive_apps() {
-        assert!(matches!(
-            follow_up_message(AppType::OpenCode, CommonConfigSnippetAction::Set, ""),
-            None
-        ));
+        assert!(follow_up_message(AppType::OpenCode, CommonConfigSnippetAction::Set, "").is_none());
     }
 }

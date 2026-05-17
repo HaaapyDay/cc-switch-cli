@@ -2,8 +2,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, OnceLock, RwLock};
 
 pub(crate) type TestHomeSettingsLock = MutexGuard<'static, ()>;
+pub(crate) type CodexOAuthTestEnvLock = MutexGuard<'static, ()>;
 
 pub(crate) fn lock_test_home_and_settings() -> TestHomeSettingsLock {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+pub(crate) fn lock_codex_oauth_test_env() -> CodexOAuthTestEnvLock {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
         .lock()

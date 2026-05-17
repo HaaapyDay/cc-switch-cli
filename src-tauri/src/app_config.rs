@@ -770,7 +770,7 @@ mod tests {
             env::set_var("USERPROFILE", dir.path());
             env::set_var("CC_SWITCH_CONFIG_DIR", dir.path().join(".cc-switch"));
             crate::test_support::set_test_home_override(Some(dir.path()));
-            crate::settings::reload_test_settings();
+            crate::settings::reload_test_settings_locked();
 
             Self {
                 dir,
@@ -802,7 +802,7 @@ mod tests {
             crate::test_support::set_test_home_override(
                 self.original_home.as_deref().map(Path::new),
             );
-            crate::settings::reload_test_settings();
+            crate::settings::reload_test_settings_locked();
         }
     }
 
@@ -821,12 +821,12 @@ mod tests {
 
         env::set_var("CC_SWITCH_CONFIG_DIR", home.join(".cc-switch"));
         crate::test_support::set_test_home_override(Some(home));
-        crate::settings::reload_test_settings();
+        crate::settings::reload_test_settings_locked();
 
         let mut settings = crate::settings::AppSettings::default();
         settings.gemini_config_dir = Some(stale_gemini_dir.to_string_lossy().into_owned());
         settings.save().expect("save stale settings");
-        crate::settings::reload_test_settings();
+        crate::settings::reload_test_settings_locked();
 
         match original_config_dir {
             Some(value) => env::set_var("CC_SWITCH_CONFIG_DIR", value),

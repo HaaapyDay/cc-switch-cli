@@ -933,16 +933,16 @@ mod tests {
     #[test]
     fn filter_mode_updates_buffer_and_exits() {
         let mut app = App::new(Some(AppType::Claude));
-        assert_eq!(app.filter.active, false);
+        assert!(!app.filter.active);
         app.on_key(key(KeyCode::Char('/')), &data());
-        assert_eq!(app.filter.active, true);
+        assert!(app.filter.active);
         app.on_key(key(KeyCode::Char('a')), &data());
         app.on_key(key(KeyCode::Char('b')), &data());
         assert_eq!(app.filter.input.value, "ab");
         app.on_key(key(KeyCode::Backspace), &data());
         assert_eq!(app.filter.input.value, "a");
         app.on_key(key(KeyCode::Enter), &data());
-        assert_eq!(app.filter.active, false);
+        assert!(!app.filter.active);
     }
 
     #[test]

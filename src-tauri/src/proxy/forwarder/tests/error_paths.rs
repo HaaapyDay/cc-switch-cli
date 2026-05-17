@@ -330,12 +330,12 @@ async fn buffered_connect_error_maps_to_forward_failed() {
 async fn buffered_rectifier_retry_shares_request_timeout_budget() {
     let (base_url, hits, bodies, server) = spawn_delayed_scripted_upstream(vec![
         (
-            Duration::from_millis(20),
+            Duration::from_millis(10),
             StatusCode::BAD_REQUEST,
             json!({"error": {"message": "messages.1.content.0: Invalid `signature` in `thinking` block"}}),
         ),
         (
-            Duration::from_millis(40),
+            Duration::from_millis(50),
             StatusCode::OK,
             json!({"id": "msg_123", "content": []}),
         ),
@@ -369,7 +369,7 @@ async fn buffered_rectifier_retry_shares_request_timeout_budget() {
             vec![provider],
             ForwardOptions {
                 max_retries: 0,
-                request_timeout: Some(Duration::from_millis(50)),
+                request_timeout: Some(Duration::from_millis(55)),
                 bypass_circuit_breaker: true,
             },
             RectifierConfig::default(),

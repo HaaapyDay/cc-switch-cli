@@ -77,16 +77,12 @@ pub struct GlobalProxySwitchUpdate {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 enum PersistedProxyRuntimeSessionKind {
     #[serde(alias = "foreground")]
+    #[default]
     Foreground,
     ManagedExternal,
-}
-
-impl Default for PersistedProxyRuntimeSessionKind {
-    fn default() -> Self {
-        Self::Foreground
-    }
 }
 
 impl PersistedProxyRuntimeSessionKind {
@@ -267,10 +263,7 @@ impl ProxyService {
     }
 
     fn has_claude_one_m_marker(model: &str) -> bool {
-        model
-            .trim_end()
-            .to_ascii_lowercase()
-            .ends_with("[1m]")
+        model.trim_end().to_ascii_lowercase().ends_with("[1m]")
     }
 
     fn strip_claude_one_m_marker(model: &str) -> String {
@@ -1347,15 +1340,15 @@ impl ProxyService {
         Ok(())
     }
 
-    async fn active_takeover_needs_model_rewrite(&self, app_type: &AppType) -> Result<bool, String> {
+    async fn active_takeover_needs_model_rewrite(
+        &self,
+        app_type: &AppType,
+    ) -> Result<bool, String> {
         if !matches!(app_type, AppType::Claude) {
             return Ok(false);
         }
 
-        if !self
-            .current_claude_provider_has_model_overrides()
-            .await?
-        {
+        if !self.current_claude_provider_has_model_overrides().await? {
             return Ok(false);
         }
 
@@ -1373,9 +1366,9 @@ impl ProxyService {
         ]
         .iter()
         .any(|key| {
-            !env.get(*key)
+            env.get(*key)
                 .and_then(Value::as_str)
-                .is_some_and(|value| !value.trim().is_empty())
+                .is_none_or(|value| value.trim().is_empty())
         }))
     }
 
@@ -1801,7 +1794,10 @@ impl ProxyService {
             return Ok(());
         };
 
-        let Some(provider_env) = provider.settings_config.get("env").and_then(Value::as_object)
+        let Some(provider_env) = provider
+            .settings_config
+            .get("env")
+            .and_then(Value::as_object)
         else {
             return Ok(());
         };
@@ -1859,7 +1855,10 @@ impl ProxyService {
             return Ok(false);
         };
 
-        let Some(provider_env) = provider.settings_config.get("env").and_then(Value::as_object)
+        let Some(provider_env) = provider
+            .settings_config
+            .get("env")
+            .and_then(Value::as_object)
         else {
             return Ok(false);
         };
@@ -2245,7 +2244,7 @@ impl ProxyService {
         #[cfg(unix)]
         {
             let rc = unsafe { libc::kill(pid as i32, 0) };
-            return rc == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM);
+            rc == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
         }
 
         #[cfg(not(unix))]
@@ -2395,10 +2394,10 @@ impl ProxyService {
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
 
-            return Err(format!(
+            Err(format!(
                 "managed proxy session did not exit after termination signal: pid {}",
                 pid
-            ));
+            ))
         }
 
         #[cfg(not(unix))]
@@ -2802,7 +2801,7 @@ mod tests {
             std::env::set_var("USERPROFILE", home);
             std::env::set_var("CC_SWITCH_CONFIG_DIR", home.join(".cc-switch"));
             set_test_home_override(Some(home));
-            crate::settings::reload_test_settings();
+            crate::settings::reload_test_settings_locked();
             Self {
                 _lock: lock,
                 old_home,
@@ -2827,7 +2826,7 @@ mod tests {
                 None => std::env::remove_var("CC_SWITCH_CONFIG_DIR"),
             }
             set_test_home_override(self.old_home.as_deref().map(Path::new));
-            crate::settings::reload_test_settings();
+            crate::settings::reload_test_settings_locked();
         }
     }
 
@@ -3860,6 +3859,9 @@ base_url = "https://api.openai.com/v1"
     #[tokio::test]
     #[serial]
     async fn proxy_config_update_waits_for_shared_restore_guard() {
+        let temp_home = TempDir::new().expect("create temp home");
+        let _env = TestHomeEnvGuard::set(temp_home.path());
+
         let db = Arc::new(Database::memory().expect("create database"));
         let service = ProxyService::new(db.clone());
 

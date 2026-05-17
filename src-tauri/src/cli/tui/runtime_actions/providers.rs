@@ -494,7 +494,7 @@ pub(super) fn model_fetch(
 
     ctx.app.overlay = Overlay::ModelFetchPicker {
         request_id,
-        field: field.clone(),
+        field,
         claude_idx,
         input: TextInput::new(""),
         query: String::new(),
@@ -1396,7 +1396,7 @@ mod tests {
                 .and_then(|meta| meta.live_config_managed),
             Some(true)
         );
-        assert!(matches!(ctx.app.toast, Some(_)));
+        assert!(ctx.app.toast.is_some());
 
         remove_from_config(&mut ctx, "p1".to_string())
             .expect("remove opencode provider from config");
@@ -2010,7 +2010,7 @@ mod tests {
 
         remove_from_config(&mut ctx, "p2".to_string())
             .expect("fallback-only default reference should be removable");
-        assert!(matches!(ctx.app.toast, Some(_)));
+        assert!(ctx.app.toast.is_some());
         assert!(!crate::openclaw_config::get_providers()
             .expect("read providers after successful remove")
             .contains_key("p2"));

@@ -185,7 +185,7 @@ mod tests {
             std::env::set_var("HOME", home);
             std::env::set_var("USERPROFILE", home);
             set_test_home_override(Some(home));
-            crate::settings::reload_test_settings();
+            crate::settings::reload_test_settings_locked();
             Self {
                 _lock: lock,
                 old_home,
@@ -205,7 +205,7 @@ mod tests {
                 None => std::env::remove_var("USERPROFILE"),
             }
             set_test_home_override(self.old_home.as_deref().map(Path::new));
-            crate::settings::reload_test_settings();
+            crate::settings::reload_test_settings_locked();
         }
     }
 

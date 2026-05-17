@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -8,7 +9,13 @@ use crate::proxy::providers::codex_oauth_auth::{
 };
 use crate::services::subscription::{query_codex_quota, CredentialStatus, SubscriptionQuota};
 
-fn manager_store() -> &'static RwLock<Option<(PathBuf, Arc<CodexOAuthManager>)>> {
+fn manager_store() -> &'static RwLock<HashMap<PathBuf, Arc<CodexOAuthManager>>> {
+    static STORE: OnceLock<RwLock<HashMap<PathBuf, Arc<CodexOAuthManager>>>> = OnceLock::new();
+    STORE.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+#[cfg(test)]
+fn pinned_manager_store() -> &'static RwLock<Option<(PathBuf, Arc<CodexOAuthManager>)>> {
     static STORE: OnceLock<RwLock<Option<(PathBuf, Arc<CodexOAuthManager>)>>> = OnceLock::new();
     STORE.get_or_init(|| RwLock::new(None))
 }
@@ -18,25 +25,56 @@ pub struct CodexOAuthService;
 impl CodexOAuthService {
     pub fn manager() -> Arc<CodexOAuthManager> {
         let path = get_app_config_dir();
+        #[cfg(test)]
+        if let Some(manager) = pinned_manager_store()
+            .read()
+            .expect("read pinned codex oauth manager")
+            .as_ref()
+            .map(|(_, manager)| Arc::clone(manager))
         {
-            let guard = manager_store().read().expect("read codex oauth manager");
-            if let Some((cached_path, manager)) = guard.as_ref() {
-                if cached_path == &path {
-                    return Arc::clone(manager);
-                }
-            }
+            return manager;
+        }
+
+        if let Some(manager) = manager_store()
+            .read()
+            .expect("read codex oauth manager")
+            .get(&path)
+            .cloned()
+        {
+            return manager;
         }
 
         let manager = Arc::new(CodexOAuthManager::new(path.clone()));
         let mut guard = manager_store().write().expect("write codex oauth manager");
-        *guard = Some((path, Arc::clone(&manager)));
-        manager
+        guard
+            .entry(path)
+            .or_insert_with(|| Arc::clone(&manager))
+            .clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pin_manager_for_tests(config_dir: PathBuf, manager: Arc<CodexOAuthManager>) {
+        let mut guard = pinned_manager_store()
+            .write()
+            .expect("write pinned codex oauth manager");
+        *guard = Some((config_dir, manager));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn unpin_manager_for_tests() {
+        let mut guard = pinned_manager_store()
+            .write()
+            .expect("write pinned codex oauth manager");
+        *guard = None;
     }
 
     #[cfg(test)]
     pub(crate) fn reset_for_tests() {
-        let mut guard = manager_store().write().expect("write codex oauth manager");
-        *guard = None;
+        let path = get_app_config_dir();
+        manager_store()
+            .write()
+            .expect("write codex oauth manager")
+            .remove(&path);
     }
 
     pub async fn start_device_flow() -> Result<ManagedAuthDeviceCodeResponse, CodexOAuthError> {

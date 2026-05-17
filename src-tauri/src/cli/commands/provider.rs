@@ -711,8 +711,12 @@ mod tests {
             .get("env")
             .and_then(|value| value.as_object())
             .expect("codex oauth provider should carry Claude env defaults");
-        let meta = provider.meta.expect("codex oauth provider should have meta");
-        let binding = meta.auth_binding.expect("codex oauth provider should bind auth");
+        let meta = provider
+            .meta
+            .expect("codex oauth provider should have meta");
+        let binding = meta
+            .auth_binding
+            .expect("codex oauth provider should bind auth");
 
         assert_eq!(provider.id, "codex");
         assert_eq!(provider.name, "Codex");
@@ -722,8 +726,7 @@ mod tests {
             Some("https://chatgpt.com/backend-api/codex")
         );
         assert_eq!(
-            env.get("ANTHROPIC_MODEL")
-                .and_then(|value| value.as_str()),
+            env.get("ANTHROPIC_MODEL").and_then(|value| value.as_str()),
             Some("gpt-5.4")
         );
         assert_eq!(
@@ -742,7 +745,10 @@ mod tests {
             Some("gpt-5.4")
         );
         assert_eq!(meta.provider_type.as_deref(), Some("codex_oauth"));
-        assert_eq!(binding.source, crate::provider::AuthBindingSource::ManagedAccount);
+        assert_eq!(
+            binding.source,
+            crate::provider::AuthBindingSource::ManagedAccount
+        );
         assert_eq!(binding.auth_provider.as_deref(), Some("codex_oauth"));
         assert_eq!(binding.account_id, None);
     }

@@ -759,7 +759,7 @@ impl ProviderService {
         Self::build_post_commit_action_for_current_provider(
             config,
             app_type,
-            &current_provider_id,
+            current_provider_id,
             takeover_active,
         )
     }

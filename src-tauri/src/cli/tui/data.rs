@@ -260,7 +260,7 @@ impl ProxySnapshot {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct UiData {
     pub providers: ProvidersSnapshot,
     pub mcp: McpSnapshot,
@@ -269,20 +269,6 @@ pub struct UiData {
     pub skills: SkillsSnapshot,
     pub proxy: ProxySnapshot,
     pub(crate) quota: QuotaSnapshot,
-}
-
-impl Default for UiData {
-    fn default() -> Self {
-        Self {
-            providers: ProvidersSnapshot::default(),
-            mcp: McpSnapshot::default(),
-            prompts: PromptsSnapshot::default(),
-            config: ConfigSnapshot::default(),
-            skills: SkillsSnapshot::default(),
-            proxy: ProxySnapshot::default(),
-            quota: QuotaSnapshot::default(),
-        }
-    }
 }
 
 pub(crate) fn load_state() -> Result<AppState, AppError> {

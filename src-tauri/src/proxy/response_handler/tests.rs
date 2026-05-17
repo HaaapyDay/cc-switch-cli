@@ -16,35 +16,43 @@ use crate::{
     database::Database,
     provider::Provider,
     proxy::{provider_router::ProviderRouter, types::ProxyConfig},
+    test_support::{lock_test_home_and_settings, set_test_home_override, TestHomeSettingsLock},
 };
 
 use super::*;
 
 struct TempHome {
+    _lock: TestHomeSettingsLock,
     #[allow(dead_code)]
     dir: TempDir,
     original_home: Option<String>,
     original_userprofile: Option<String>,
     original_config_dir: Option<String>,
+    original_home_override: Option<std::path::PathBuf>,
 }
 
 impl TempHome {
     fn new() -> Self {
+        let lock = lock_test_home_and_settings();
         let dir = TempDir::new().expect("create temp home");
         let original_home = env::var("HOME").ok();
         let original_userprofile = env::var("USERPROFILE").ok();
         let original_config_dir = env::var("CC_SWITCH_CONFIG_DIR").ok();
+        let original_home_override = crate::test_support::test_home_override();
 
         env::set_var("HOME", dir.path());
         env::set_var("USERPROFILE", dir.path());
         env::set_var("CC_SWITCH_CONFIG_DIR", dir.path().join(".cc-switch"));
-        crate::settings::reload_test_settings();
+        set_test_home_override(Some(dir.path()));
+        crate::settings::reload_test_settings_locked();
 
         Self {
+            _lock: lock,
             dir,
             original_home,
             original_userprofile,
             original_config_dir,
+            original_home_override,
         }
     }
 }
@@ -66,7 +74,12 @@ impl Drop for TempHome {
             None => env::remove_var("CC_SWITCH_CONFIG_DIR"),
         }
 
-        crate::settings::reload_test_settings();
+        set_test_home_override(
+            self.original_home_override
+                .as_deref()
+                .map(std::path::Path::new),
+        );
+        crate::settings::reload_test_settings_locked();
     }
 }
 
@@ -119,6 +132,27 @@ async fn set_takeover_enabled(db: &Database, app_type: &str, enabled: bool) {
 
 async fn settle_tasks() {
     tokio::time::sleep(Duration::from_millis(10)).await;
+}
+
+async fn wait_for_failover_sync(db: &Database, expected: &str) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        let db_current = db
+            .get_current_provider("claude")
+            .expect("read current provider");
+        let settings_current = crate::settings::get_current_provider(&AppType::Claude);
+        if db_current.as_deref() == Some(expected)
+            && settings_current.as_deref() == Some(expected)
+        {
+            return;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "timed out waiting for failover sync to {expected:?}, \
+             db={db_current:?}, settings={settings_current:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
 }
 
 #[tokio::test]
@@ -327,6 +361,7 @@ async fn streaming_success_syncs_failover_state_after_body_drains() {
     let _ = to_bytes(response.into_body(), usize::MAX)
         .await
         .expect("drain response body");
+    wait_for_failover_sync(&db, "claude-failover").await;
     settle_tasks().await;
 
     let status = state.snapshot_status().await;
